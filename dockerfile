@@ -1,32 +1,39 @@
-# Use a lightweight Python base
+# Use Python 3.11 as base
 FROM python:3.11-slim
 
-# Set working directory
+# Set work directory
 WORKDIR /app
 
-# Copy everything to container
+# Copy everything
 COPY . .
 
-# Install system build dependencies
+# Install system deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
+    build-essential findutils && \
+    rm -rf /var/lib/apt/lists/*
 
-# Check if requirements.txt exists, then install
-RUN if [ -f "requirements.txt" ]; then \
-        echo "📦 Installing dependencies from requirements.txt..."; \
-        pip install --no-cache-dir -r requirements.txt; \
+# Auto-detect and install requirements.txt (searches all subdirectories)
+RUN REQ_FILE=$(find /app -type f -name "requirements.txt" | head -n 1) && \
+    if [ -n "$REQ_FILE" ]; then \
+        echo "📦 Found requirements file at $REQ_FILE"; \
+        pip install --no-cache-dir -r "$REQ_FILE"; \
     else \
-        echo "⚠️ No requirements.txt found. Skipping dependency installation."; \
+        echo "⚠️ No requirements.txt found, skipping dependency install."; \
     fi
 
-# Detect and run the main script automatically
-CMD if [ -f "run_ui.py" ]; then \
-        echo "▶️ Running run_ui.py"; python3 run_ui.py; \
-    elif [ -f "main.py" ]; then \
-        echo "▶️ Running main.py"; python3 main.py; \
-    elif [ -f "app.py" ]; then \
-        echo "▶️ Running app.py"; python3 app.py; \
+# Auto-detect and run run_ui.py (searches recursively)
+CMD SCRIPT=$(find /app -type f -name "run_ui.py" | head -n 1) && \
+    if [ -n "$SCRIPT" ]; then \
+        echo "▶️ Starting Agent Zero using $SCRIPT"; \
+        python3 "$SCRIPT"; \
     else \
-        echo "❌ No startup file found (run_ui.py, main.py, or app.py)."; exit 1; \
+        echo "❌ Could not find run_ui.py. Searching for fallback main/app.py..."; \
+        FALLBACK=$(find /app -type f \( -name "main.py" -o -name "app.py" \) | head -n 1); \
+        if [ -n "$FALLBACK" ]; then \
+            echo "▶️ Running fallback: $FALLBACK"; \
+            python3 "$FALLBACK"; \
+        else \
+            echo "🚨 No startup script found (run_ui.py, main.py, app.py). Exiting."; \
+            exit 1; \
+        fi; \
     fi
