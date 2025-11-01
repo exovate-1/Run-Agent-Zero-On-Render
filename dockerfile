@@ -1,28 +1,32 @@
-# Use a lightweight Python image
+# Use a lightweight Python base
 FROM python:3.11-slim
 
-# Set working directory inside container
+# Set working directory
 WORKDIR /app
 
-# Copy everything into the container
+# Copy everything to container
 COPY . .
 
-# Install system dependencies (optional but helps avoid missing build tools)
+# Install system build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Install all required Python packages
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Automatically find a startup script
-# If run_ui.py exists, use it. If not, fallback to main.py or app.py
-CMD if [ -f "run_ui.py" ]; then \
-        python3 run_ui.py; \
-    elif [ -f "main.py" ]; then \
-        python3 main.py; \
-    elif [ -f "app.py" ]; then \
-        python3 app.py; \
+# Check if requirements.txt exists, then install
+RUN if [ -f "requirements.txt" ]; then \
+        echo "📦 Installing dependencies from requirements.txt..."; \
+        pip install --no-cache-dir -r requirements.txt; \
     else \
-        echo "❌ No startup file found (run_ui.py, main.py, or app.py)"; exit 1; \
+        echo "⚠️ No requirements.txt found. Skipping dependency installation."; \
+    fi
+
+# Detect and run the main script automatically
+CMD if [ -f "run_ui.py" ]; then \
+        echo "▶️ Running run_ui.py"; python3 run_ui.py; \
+    elif [ -f "main.py" ]; then \
+        echo "▶️ Running main.py"; python3 main.py; \
+    elif [ -f "app.py" ]; then \
+        echo "▶️ Running app.py"; python3 app.py; \
+    else \
+        echo "❌ No startup file found (run_ui.py, main.py, or app.py)."; exit 1; \
     fi
